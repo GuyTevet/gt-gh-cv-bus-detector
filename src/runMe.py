@@ -6,15 +6,23 @@ sys.path.append('utils')
 
 #local packages
 from utils.data import *
+from detector import *
+
 
 def run(myAnnFileName, buses):
     annFileNameGT = os.path.join(os.getcwd(), '..', 'ground_truth', 'annotationsTrain.txt')
 
     #test
-    fff = DatasetBB(annFileNameGT)
-    fff.load()
-    fff.filePath = myAnnFileName
+    fff = DatasetBB(myAnnFileName)
+
+
+
+    d = Detector(fff)
+    d.detect()
+
     fff.save()
+
+
 
 
 

@@ -5,9 +5,11 @@ Data structs
 
 class BB(object):
 
-    def __init__(self,bb):
+    def __init__(self,bb,yolo_data=None):
         assert len(bb) == 5
         [self.xmin, self.ymin, self.width, self.height, self.color] = bb
+        if yolo_data is not None:
+            [self.label , self.confidence] = yolo_data
 
     def str(self):
         return "[%0d,%0d,%0d,%0d,%0d]" % (self.xmin, self.ymin, self.width, self.height, self.color)
@@ -23,9 +25,14 @@ class ImageBB(object):
 
     def str(self):
         str = self.name + ':'
+        bb_num = 0
         for bb in self.bbList :
             str += bb.str() + ','
-        str = str[:len(str)-1] + '\n'
+            bb_num += 1
+        if bb_num > 0 :
+            str = str[:len(str)-1] + '\n'
+        else:
+            str += '[0,0,10,10,1]\n' #FIXME
         return str
 
 class DatasetBB(object):
