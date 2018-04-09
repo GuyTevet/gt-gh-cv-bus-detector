@@ -1,7 +1,7 @@
 """
 Data structs
 """
-
+import numpy as np
 
 class BB(object):
 
@@ -15,8 +15,10 @@ class BB(object):
         return "[%0d,%0d,%0d,%0d,%0d]" % (self.xmin, self.ymin, self.width, self.height, self.color)
 
 class ImageBB(object):
-    def __init__(self,name,bbList = None):
+    def __init__(self,name,width=3648,height=2736,bbList = None):
         self.name = name
+        self.height = height
+        self.width = width
 
         if bbList is None :
             self.bbList = []
@@ -35,6 +37,14 @@ class ImageBB(object):
             str += '[0,0,10,10,1]\n' #FIXME
         return str
 
+    def features(self):
+        features = np.zeros([2,0],dtype=np.float32)
+        for bb in self.bbList :
+            bbFeatures = np.expand_dims(np.array([bb.width * 1. / self.width , bb.height * 1. / self.height]),axis=1)
+            features = np.concatenate((features,bbFeatures),axis=1)
+        return features
+
+
 class DatasetBB(object):
 
     def __init__(self,filePath,imageBBList=None):
@@ -50,6 +60,12 @@ class DatasetBB(object):
         for imageBB in self.imageBBList :
             str += imageBB.str()
         return str
+
+    def features(self):
+        features = np.zeros([2,0],dtype=np.float32)
+        for image in self.imageBBList :
+            features = np.concatenate((features,image.features()),axis=1)
+        return features
 
     def save(self):
         with open(self.filePath, 'w') as file:

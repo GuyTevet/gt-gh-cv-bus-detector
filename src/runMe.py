@@ -2,6 +2,8 @@ import numpy as np
 import ast
 import os
 import sys
+import matplotlib.pyplot as plt
+import cv2
 sys.path.append('utils')
 
 #local packages
@@ -10,20 +12,35 @@ from detector import *
 
 
 def run(myAnnFileName, buses):
-    annFileNameGT = os.path.join(os.getcwd(), '..', 'ground_truth', 'annotationsTrain.txt')
 
-    #test
-    fff = DatasetBB(myAnnFileName)
+    #instances
+    outData = DatasetBB(myAnnFileName)
+    detector = Detector(outData)
+    #classifier(?)
+
+    #list all images in the testset
+    currDir = os.path.abspath(os.getcwd())
+    dataset = sorted(os.listdir(buses), key=str.lower)
+
+    # remove non jpeg files from images list
+    for file in dataset:
+        if file.find('.jpg') == -1 and file.find('.jpeg') == -1 and file.find('.JPG') == -1 and file.find(
+                '.JPEG') == -1:
+            dataset.remove(file)
 
 
+    #run detector & classifier
+    for imageName in dataset:
 
-    d = Detector(fff)
-    d.detect()
+        #load
+        image = cv2.imread(os.path.join(currDir, '..', 'dataset', imageName))
 
-    fff.save()
+        #detect
+        detector.detect(image,imageName,debugMode=True)
 
+        #classify
 
-
+    outData.save()
 
 
 
