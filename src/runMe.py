@@ -36,7 +36,7 @@ def run(myAnnFileName, buses):
         image = cv2.imread(os.path.join(currDir, '..', 'dataset', imageName))
 
         #detect
-        detector.detect(image,imageName,debugMode=True)
+        detector.detect(image,imageName,debugMode=False)
 
         #classify
 

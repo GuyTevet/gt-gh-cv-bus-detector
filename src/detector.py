@@ -35,11 +35,14 @@ class Detector(object):
         self.cfg_file = os.path.join("cfg" , "yolo.cfg")
         self.weights_file = os.path.join("yolov2.weights")
         self.positiveLabelsList = ['car','truck','bus']
-        self.invalidLabel = 1 #green #FIXME - should be 0 - 1 is valid for debug perpusses
+        self.invalidLabel = 1 #invalid #FIXME
 
     def detect(self,image,imageName,debugMode=False):
 
         os.chdir(self.darkflowDir)
+
+        if debugMode:
+            self.invalidLabel = 1 #green
 
         prediction = tfnet.return_predict(image) #TODO - consider batch inferance instead of single inferance
 
@@ -84,7 +87,7 @@ class Detector(object):
 
 
 
-        self.bbElimination(imageBB,debugMode=True) #TODO - exit from debug mode
+        self.bbElimination(imageBB,debugMode=debugMode)
         self.datasetBB.imageBBList.append(imageBB)
 
 
@@ -131,44 +134,44 @@ class Detector(object):
 
         ### 3. eliminate containment pairs:
         ### detect one BB that contains or almost contains another BB - eliminate one of them using ***
-        for bb_i in range(len(imageBB.bbList)):
-            for bb_j in range(bb_i + 1, len(imageBB.bbList)):
-                if imageBB.bbList[bb_i].color == eliminatedMark or imageBB.bbList[bb_j].color == eliminatedMark :
-                    continue
-                elif self.checkContainment(imageBB.bbList[bb_i],imageBB.bbList[bb_j]) == True:
-                    #imageBB.bbList[bb_i].color = 5 #blue
-                    #imageBB.bbList[bb_j].color = 5  # blue
-
-                    #eliminate the less tipical BB
-                    BBFeatureVector_i = self.calcFeatureVector(imageBB.bbList[bb_i])
-                    BBFeatureVector_j = self.calcFeatureVector(imageBB.bbList[bb_j])
-                    typicality_i = self.calcBBTypicality(BBFeatureVector_i, self.trainFeatureVectors)
-                    typicality_j = self.calcBBTypicality(BBFeatureVector_j, self.trainFeatureVectors)
-
-                    plt.figure()
-                    for i in range(self.trainFeatureVectors.shape[1]):
-                        plt.scatter(self.trainFeatureVectors[0,i], self.trainFeatureVectors[1,i], s=10 ,c='red', marker='o')
-                    plt.scatter(BBFeatureVector_i[0], BBFeatureVector_i[1], s=10, c='green', marker='o')
-                    plt.scatter(BBFeatureVector_j[0], BBFeatureVector_j[1], s=10, c='blue', marker='o')
-                    plt.savefig('debug.png')
-                    plt.close()
-
-                    #eliminate the less typical BB
-                    if typicality_i < typicality_j :
-                        imageBB.bbList[bb_i].color = 5  # blue
-                    else:
-                        imageBB.bbList[bb_j].color = 5  # blue
-
-
-        ### 3. eliminate too big and too small BBs (by area)
-        # maxArea = 0.3 #determined empirically according the trainset
-        # minArea = 0.0003
-        # imageArea = imageBB.height * imageBB.width
-        # for bb in imageBB.bbList:
-        #     area = bb.height * bb.width
-        #     areaRatio = area * 1. / imageArea
+        # for bb_i in range(len(imageBB.bbList)):
+        #     for bb_j in range(bb_i + 1, len(imageBB.bbList)):
+        #         if imageBB.bbList[bb_i].color == eliminatedMark or imageBB.bbList[bb_j].color == eliminatedMark :
+        #             continue
+        #         elif self.checkContainment(imageBB.bbList[bb_i],imageBB.bbList[bb_j]) == True:
+        #             #imageBB.bbList[bb_i].color = 5 #blue
+        #             #imageBB.bbList[bb_j].color = 5  # blue
         #
+        #             #eliminate the less tipical BB
+        #             BBFeatureVector_i = self.calcFeatureVector(imageBB.bbList[bb_i])
+        #             BBFeatureVector_j = self.calcFeatureVector(imageBB.bbList[bb_j])
+        #             typicality_i = self.calcBBTypicality(BBFeatureVector_i, self.trainFeatureVectors)
+        #             typicality_j = self.calcBBTypicality(BBFeatureVector_j, self.trainFeatureVectors)
+        #
+        #             plt.figure()
+        #             for i in range(self.trainFeatureVectors.shape[1]):
+        #                 plt.scatter(self.trainFeatureVectors[0,i], self.trainFeatureVectors[1,i], s=10 ,c='red', marker='o')
+        #             plt.scatter(BBFeatureVector_i[0], BBFeatureVector_i[1], s=10, c='green', marker='o')
+        #             plt.scatter(BBFeatureVector_j[0], BBFeatureVector_j[1], s=10, c='blue', marker='o')
+        #             plt.savefig('debug.png')
+        #             plt.close()
+        #
+        #             #eliminate the less typical BB
+        #             if typicality_i < typicality_j :
+        #                 imageBB.bbList[bb_i].color = 5  # blue
+        #             else:
+        #                 imageBB.bbList[bb_j].color = 5  # blue
 
+
+        ### 3. eliminate too big BBs
+        maxWidth = 0.55
+        maxHeight = 0.4
+        #both determined empirically according the trainset
+        for bb in imageBB.bbList:
+            if  bb.height * 1. / imageBB.height > maxHeight:
+                bb.color = eliminatedMark
+            if  bb.width * 1. / imageBB.width > maxWidth:
+                bb.color = eliminatedMark
 
         # REMOVE BBs
         imageBB.bbList = [bb for bb in imageBB.bbList if bb.color != 'remove']
@@ -337,7 +340,7 @@ loader.gitImport()
 loader.gitConfigure()
 
 # define YOLO model:
-options = {"model": cfg_file , "load": weights_file , "threshold": 0.1}
+options = {"model": cfg_file , "load": weights_file , "threshold": 0.05}
 
 #load model
 os.chdir(darkFlowDir)
