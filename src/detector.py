@@ -11,15 +11,6 @@ sys.path.append('utils')
 from utils.data import *
 import utils.visualisations as visualisations
 
-#define dirs
-darkFlowDir = os.path.abspath(os.path.join(os.getcwd(),'..' ,'..' , 'darkflow'))
-currDir = os.path.abspath(os.getcwd())
-
-#import darkflow FIXME - eliminate
-if os.path.isdir(darkFlowDir):
-    from darkflowExtensions import darkflowForBusDetection
-    #from darkflow.net.build import TFNet
-
 class Detector(object):
 
     def __init__(self,datasetBB):
@@ -292,20 +283,15 @@ class DetectorGitLoader(object):
             print('building repository...')
             ver = sys.version_info
             assert sys.version_info >= (3, 0)  # assert python 3 #TODO - support python2
+            origArgv = sys.argv
             sys.argv = ['setup.py', 'build_ext', '--inplace']
             exec(open('setup.py').read())
+            sys.argv = origArgv
 
             # download weights
             print('downloading weights...')
             if not os.path.isfile(self.weights_file):
                 urllib.request.urlretrieve(self.weightsURL, self.weights_file)
-
-            # import
-            print('importing module...')
-            path1 = sys.path
-            sys.path.append(self.darkflowDir)
-            path2 = sys.path
-            from darkflow.net.build import TFNet  # FIXME - not working
 
             os.chdir(self.currDir)
 
@@ -334,10 +320,18 @@ class DetectorGitLoader(object):
 cfg_file = os.path.join("cfg", "yolo.cfg")
 weights_file = os.path.join("yolov2.weights")
 
+#define dirs
+darkFlowDir = os.path.abspath(os.path.join(os.getcwd(),'..' ,'..' , 'darkflow'))
+currDir = os.path.abspath(os.getcwd())
+
 # initialize
 loader = DetectorGitLoader()
 loader.gitImport()
 loader.gitConfigure()
+
+#import darkflow
+if os.path.isdir(darkFlowDir):
+    from darkflowExtensions import darkflowForBusDetection
 
 # define YOLO model:
 options = {"model": cfg_file , "load": weights_file , "threshold": 0.05}
