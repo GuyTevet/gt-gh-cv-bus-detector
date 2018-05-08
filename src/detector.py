@@ -5,11 +5,14 @@ import cv2
 import numpy as np
 import urllib.request
 import matplotlib.pyplot as plt
+from shutil import copyfile
 sys.path.append('utils')
 
 #local packages
 from utils.data import *
 import utils.visualisations as visualisations
+
+implementation='darkflow' #supporting {yad2k,darkflow} #IF YOU WANT TO CHOOSE ANOTHER IMP - DO IT HERE!
 
 class Detector(object):
 
@@ -35,7 +38,7 @@ class Detector(object):
         if debugMode:
             self.invalidLabel = 1 #green
 
-        prediction = tfnet.return_predict(image) #TODO - consider batch inferance instead of single inferance
+        prediction = tfnet.return_predict(image)
 
         self.imheight = image.shape[0]
         self.imwidth = image.shape[1]
@@ -258,35 +261,50 @@ Load Module:
 
 class DetectorGitLoader(object):
 
-    def __init__(self):
+    def __init__(self,implementation = 'yad2k'): #supporting yad2k & darkflow
 
-        #hard coded
+        #hard coded params
+
+        self.implementation = implementation
         self.currDir = os.path.abspath(os.getcwd())
-        self.darkflowDir = os.path.abspath(os.path.join(os.getcwd(), '..', '..', 'darkflow'))
-        self.featureVectorsFile = os.path.join(self.currDir,'detectorFeatureVectors.npy')
-        self.trainFeatureVectors = np.load(self.featureVectorsFile)
-        self.darkflowURL = 'https://github.com/thtrieu/darkflow.git'
+
+        if implementation == 'darkflow':
+            self.repDir = os.path.abspath(os.path.join(os.getcwd(), '..', '..', 'darkflow'))
+            self.repURL = 'https://github.com/thtrieu/darkflow.git'
+            self.cfg_file = os.path.join("cfg", "yolo.cfg")
+        elif implementation == 'yad2k':
+            self.repDir = os.path.abspath(os.path.join(os.getcwd(), '..', '..', 'yad2k_rep'))
+            self.repURL = 'https://github.com/allanzelener/YAD2K.git'
+            self.cfg_file = os.path.join("yolov2.cfg")
+        else:
+            raise ValueError('supporting {yad2k,darkflow} implementations at the moment')
+
         self.weightsURL = 'https://pjreddie.com/media/files/yolov2.weights'
-        self.cfg_file = os.path.join("cfg" , "yolo.cfg")
         self.weights_file = os.path.join("yolov2.weights")
         self.networkResolution = 608 #864 #608 #544 #288
 
     def gitImport(self):
-        if not os.path.isdir(self.darkflowDir):
+
+        if not os.path.isdir(self.repDir):
 
             # clone
-            print('cloning darkflow...')
-            git.Repo.clone_from(self.darkflowURL, self.darkflowDir)
-            os.chdir(self.darkflowDir)
+            print("cloning repository [%0s]..." % self.implementation)
+            git.Repo.clone_from(self.repURL, self.repDir)
+            os.chdir(self.repDir)
 
             # setup
-            print('building repository...')
-            ver = sys.version_info
-            assert sys.version_info >= (3, 0)  # assert python 3 #TODO - support python2
-            origArgv = sys.argv
-            sys.argv = ['setup.py', 'build_ext', '--inplace']
-            exec(open('setup.py').read())
-            sys.argv = origArgv
+            if self.implementation == 'darkflow':
+                print('building repository (only for darkflow implementation)...')
+                ver = sys.version_info
+                assert sys.version_info >= (3, 0)  # assert python 3 #TODO - support python2
+                origArgv = sys.argv
+                sys.argv = ['setup.py', 'build_ext', '--inplace']
+                exec(open('setup.py').read())
+                sys.argv = origArgv
+
+            #some modifications
+            if self.implementation == 'yad2k':
+                os.rename('yad2k.py','yad2k_main.py')
 
             # download weights
             print('downloading weights...')
@@ -297,7 +315,13 @@ class DetectorGitLoader(object):
 
 
     def gitConfigure(self):
-        os.chdir(self.darkflowDir)
+
+        #copy cfg file
+        local_cfg = 'yolov2.cfg'
+        copyfile(local_cfg,os.path.join(self.repDir,self.cfg_file))
+
+        #change configurations
+        os.chdir(self.repDir)
 
         with open(self.cfg_file, 'r') as file:
             cfgTxt = file.read()
@@ -317,30 +341,43 @@ class DetectorGitLoader(object):
         os.chdir(self.currDir)
 
 # define consts
-cfg_file = os.path.join("cfg", "yolo.cfg")
-weights_file = os.path.join("yolov2.weights")
-
-#define dirs
-darkFlowDir = os.path.abspath(os.path.join(os.getcwd(),'..' ,'..' , 'darkflow'))
-currDir = os.path.abspath(os.getcwd())
+if implementation == 'darkflow':
+    repDir = os.path.abspath(os.path.join(os.getcwd(), '..', '..', 'darkflow'))
+    currDir = os.path.abspath(os.getcwd())
+    cfg_file = os.path.join("cfg", "yolo.cfg")
+    weights_file = os.path.join("yolov2.weights")
+elif implementation == 'yad2k':
+    repDir = os.path.abspath(os.path.join(os.getcwd(), '..', '..', 'yad2k_rep'))
+    currDir = os.path.abspath(os.getcwd())
+    cfg_file = os.path.join("yolo.cfg")
+    weights_file = os.path.join("yolov2.weights")
+else:
+    raise ValueError('supporting {yad2k,darkflow} implementations at the moment')
 
 # initialize
-loader = DetectorGitLoader()
+loader = DetectorGitLoader(implementation=implementation)
 loader.gitImport()
 loader.gitConfigure()
 
-#import darkflow
-if os.path.isdir(darkFlowDir):
+#import implementation
+
+if implementation == 'darkflow':
     from darkflowExtensions import darkflowForBusDetection
+elif implementation == 'yad2k':
+    from yad2kExtensions import yad2kForBusDetection
 
 # define YOLO model:
 options = {"model": cfg_file , "load": weights_file , "threshold": 0.05}
 
 #load model
-os.chdir(darkFlowDir)
-tfnet = darkflowForBusDetection(options)
-#tfnet = TFNet(options)
+os.chdir(repDir)
+if implementation == 'darkflow':
+    tfnet = darkflowForBusDetection(options)
+elif implementation == 'yad2k':
+    tfnet = yad2kForBusDetection(options)
+
 os.chdir(currDir)
+
 
 
 
