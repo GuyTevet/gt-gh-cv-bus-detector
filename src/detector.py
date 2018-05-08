@@ -12,7 +12,7 @@ sys.path.append('utils')
 from utils.data import *
 import utils.visualisations as visualisations
 
-implementation='darkflow' #supporting {yad2k,darkflow} #IF YOU WANT TO CHOOSE ANOTHER IMP - DO IT HERE!
+implementation='yad2k' #supporting {yad2k,darkflow} #IF YOU WANT TO CHOOSE ANOTHER IMP - DO IT HERE!
 
 class Detector(object):
 
