@@ -7,6 +7,7 @@ import urllib.request
 import matplotlib.pyplot as plt
 from shutil import copyfile
 sys.path.append('utils')
+import time
 
 #local packages
 from utils.data import *
@@ -29,9 +30,11 @@ class Detector(object):
         self.cfg_file = os.path.join("cfg" , "yolo.cfg")
         self.weights_file = os.path.join("yolov2.weights")
         self.positiveLabelsList = ['car','truck','bus']
-        self.invalidLabel = -1
+        self.invalidLabel = 1
 
     def detect(self,image,imageName,debugMode=False):
+
+        t0  = time.time()
 
         os.chdir(self.darkflowDir)
 
@@ -69,9 +72,12 @@ class Detector(object):
         self.bbElimination(imageBB,debugMode=debugMode)
         self.datasetBB.imageBBList.append(imageBB)
 
-        print(prediction)
+        if debugMode:
+            print(prediction)
+        t1 = time.time()
+        print("detected %s in %0.4f[sec]"%(imageName,(t1 - t0)))
         os.chdir(self.currDir)
-
+        return imageBB
 
     def bbElimination(self,imageBB,debugMode=False):
         """

@@ -7,15 +7,6 @@ import sys
 import numpy as np
 
 import tensorflow as tf
-import time
-import json
-import numpy as np
-
-import argparse
-import colorsys
-import imghdr
-import random
-import argparse
 import cv2
 import time
 
@@ -133,23 +124,23 @@ class yad2kForBusDetection(object):
         model_image_size = yolo_model.layers[0].input_shape[1:3]
         is_fixed_size = model_image_size != (None, None)
 
-        return yolo_model, sess , anchors , class_names
-
-
-    def return_predict(self,image):
         # Generate output tensor targets for filtered bounding boxes.
+        self.yolo_outputs = yolo_head(yolo_model.output, anchors, len(class_names))
         # TODO: Wrap these backend operations with Keras layers.
-        yolo_outputs = yolo_head(self.yolo_model.output, self.anchors, len(self.class_names))
-        input_image_shape = K.placeholder(shape=(2,))
-        boxes, scores, classes, all_scores = yolo_eval_extend(
-            yolo_outputs,
-            input_image_shape,
+        self.input_image_shape = K.placeholder(shape=(2,))
+        self.boxes, self.scores, self.classes, self.all_scores = yolo_eval_extend(
+            self.yolo_outputs,
+            self.input_image_shape,
             score_threshold=self.score_threshold,
             iou_threshold=self.iou_threshold)
 
+        return yolo_model, sess , anchors , class_names
+
+    def return_predict(self,image):
+
+        boxes, scores, classes, all_scores = [self.boxes, self.scores, self.classes, self.all_scores]
 
         #image resize
-
         orig_height = image.shape[0]
         orig_width = image.shape[1]
 
@@ -168,25 +159,10 @@ class yad2kForBusDetection(object):
             [boxes, scores, classes, all_scores],
             feed_dict={
                 self.yolo_model.input: image_data,
-                input_image_shape: [image_height, image_width],
+                self.input_image_shape: [image_height, image_width],
                 K.learning_phase(): 0
             })
         print('Found {} boxes'.format(len(out_boxes)))
-
-        # ##TEMP EXPERIMENT
-        # for batch_size in range(1,65):
-        #     t0 = time.time()
-        #     out_boxes, out_scores, out_classes, out_all_scores = self.sess.run(
-        #         [boxes, scores, classes, all_scores],
-        #         feed_dict={
-        #             self.yolo_model.input: np.tile(image_data,[batch_size,1,1,1]),
-        #             input_image_shape: [image_height, image_width],
-        #             K.learning_phase(): 0
-        #         })
-        #     t1 = time.time()
-        #     time_for_image = (t1-t0) * 1. / batch_size
-        #     print("batch size: %0d \t\t time: %0.4f"%(batch_size,time_for_image))
-
 
         #find 3 most segnificant classes
         classes_indexes = np.argsort(out_all_scores,axis=1)[:,-3:]
@@ -215,5 +191,6 @@ class yad2kForBusDetection(object):
 
             box = {'label': predicted_class_list, 'confidence': score, 'topleft': {'x':left,'y':top},'bottomright':{'x':right,'y':bottom}}
             detections.append(box)
+
 
         return detections
