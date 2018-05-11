@@ -84,6 +84,9 @@ class yad2kForBusDetection(object):
         self.score_threshold = options['threshold']
         self.iou_threshold = options['iou_threshold']
 
+        self.image_height = options['input_height']
+        self.image_width = options['input_width']
+
         self.yolo_model, self.sess , self.anchors, self.class_names = self.load_model()
 
     def create_model(self):
@@ -93,8 +96,8 @@ class yad2kForBusDetection(object):
 
     def load_model(self):
 
-        if not os.path.isfile(self.model_path):
-            self.create_model()
+        #if not os.path.isfile(self.model_path):
+        self.create_model()
 
         sess = K.get_session()  # TODO: Remove dependence on Tensorflow session.
 
@@ -144,8 +147,8 @@ class yad2kForBusDetection(object):
         orig_height = image.shape[0]
         orig_width = image.shape[1]
 
-        image_height = 608
-        image_width = 608
+        image_height = self.image_height
+        image_width = self.image_width
 
         scale_height = image_height * 1. / orig_height
         scale_width = image_width * 1. / orig_width
