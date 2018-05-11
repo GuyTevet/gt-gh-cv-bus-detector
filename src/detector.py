@@ -29,7 +29,7 @@ class Detector(object):
         self.cfg_file = os.path.join("cfg" , "yolo.cfg")
         self.weights_file = os.path.join("yolov2.weights")
         self.positiveLabelsList = ['car','truck','bus']
-        self.invalidLabel = 1 #invalid #FIXME
+        self.invalidLabel = -1
 
     def detect(self,image,imageName,debugMode=False):
 
@@ -66,31 +66,10 @@ class Detector(object):
 
                     break #we dont want to add the same BB twice
 
-
-                # elif debugMode is True:
-                #
-                #     bb = BB([darkflowBB['topleft']['x'] ,
-                #              darkflowBB['topleft']['y'],
-                #              darkflowBB['bottomright']['x'] - darkflowBB['topleft']['x'],
-                #              darkflowBB['bottomright']['y'] - darkflowBB['topleft']['y'],
-                #              5], #blue
-                #             yolo_data = [darkflowBB['label'],
-                #              darkflowBB['confidence']])
-                #
-                #     #imageBB.bbList.append(bb)
-
-
-
         self.bbElimination(imageBB,debugMode=debugMode)
         self.datasetBB.imageBBList.append(imageBB)
 
-
         print(prediction)
-        if debugMode:
-            #visualisations.darkflowDebug(imgcv,img,prediction,debugPath=os.path.join(self.currDir,'..','debug'))
-            pass
-
-
         os.chdir(self.currDir)
 
 
@@ -125,37 +104,6 @@ class Detector(object):
             aspectRatio = bb.width * 1. / bb.height
             if aspectRatio > maxAspectRatio or aspectRatio < minAspectRatio :
                 bb.color = eliminatedMark
-
-        ### 3. eliminate containment pairs:
-        ### detect one BB that contains or almost contains another BB - eliminate one of them using ***
-        # for bb_i in range(len(imageBB.bbList)):
-        #     for bb_j in range(bb_i + 1, len(imageBB.bbList)):
-        #         if imageBB.bbList[bb_i].color == eliminatedMark or imageBB.bbList[bb_j].color == eliminatedMark :
-        #             continue
-        #         elif self.checkContainment(imageBB.bbList[bb_i],imageBB.bbList[bb_j]) == True:
-        #             #imageBB.bbList[bb_i].color = 5 #blue
-        #             #imageBB.bbList[bb_j].color = 5  # blue
-        #
-        #             #eliminate the less tipical BB
-        #             BBFeatureVector_i = self.calcFeatureVector(imageBB.bbList[bb_i])
-        #             BBFeatureVector_j = self.calcFeatureVector(imageBB.bbList[bb_j])
-        #             typicality_i = self.calcBBTypicality(BBFeatureVector_i, self.trainFeatureVectors)
-        #             typicality_j = self.calcBBTypicality(BBFeatureVector_j, self.trainFeatureVectors)
-        #
-        #             plt.figure()
-        #             for i in range(self.trainFeatureVectors.shape[1]):
-        #                 plt.scatter(self.trainFeatureVectors[0,i], self.trainFeatureVectors[1,i], s=10 ,c='red', marker='o')
-        #             plt.scatter(BBFeatureVector_i[0], BBFeatureVector_i[1], s=10, c='green', marker='o')
-        #             plt.scatter(BBFeatureVector_j[0], BBFeatureVector_j[1], s=10, c='blue', marker='o')
-        #             plt.savefig('debug.png')
-        #             plt.close()
-        #
-        #             #eliminate the less typical BB
-        #             if typicality_i < typicality_j :
-        #                 imageBB.bbList[bb_i].color = 5  # blue
-        #             else:
-        #                 imageBB.bbList[bb_j].color = 5  # blue
-
 
         ### 3. eliminate too big BBs
         maxWidth = 0.55

@@ -80,9 +80,7 @@ def yolo_eval_extend(yolo_outputs,
     all_scores = K.gather(all_scores, nms_index)
     return boxes, scores, classes, all_scores
 
-
-
-
+#our extension to the detector class
 class yad2kForBusDetection(object):
     def __init__(self,options):
 
@@ -208,22 +206,12 @@ class yad2kForBusDetection(object):
             for class_idx in classes_list[i]:
                 predicted_class_list.append(self.class_names[class_idx])
 
-            label = '{} {:.2f}'.format(predicted_class, score)
-            #
-            # draw = ImageDraw.Draw(image)
-            # label_size = draw.textsize(label, font)
-
             top, left, bottom, right = box
             top = max(0, np.floor((top + 0.5)/scale_height).astype('int32'))
             left = max(0, np.floor((left + 0.5)/scale_width).astype('int32'))
             bottom = min(orig_height, np.floor((bottom + 0.5)/scale_height).astype('int32'))
             right = min(orig_width, np.floor((right + 0.5)/scale_width).astype('int32'))
             #print(label, (left, top), (right, bottom))
-
-            # if top - label_size[1] >= 0:
-            #     text_origin = np.array([left, top - label_size[1]])
-            # else:
-            #     text_origin = np.array([left, top + 1])
 
             box = {'label': predicted_class_list, 'confidence': score, 'topleft': {'x':left,'y':top},'bottomright':{'x':right,'y':bottom}}
             detections.append(box)
