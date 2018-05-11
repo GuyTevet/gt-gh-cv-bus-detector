@@ -17,6 +17,7 @@ import imghdr
 import random
 import argparse
 import cv2
+import time
 
 import numpy as np
 from keras import backend as K
@@ -29,10 +30,57 @@ if os.path.isdir(yad2kDir):
     sys.path.append(os.path.abspath(os.path.join(yad2kDir)))
     import yad2k_main
     import test_yolo
-    from yad2k.models.keras_yolo import yolo_eval, yolo_head
+    from yad2k.models.keras_yolo import yolo_eval, yolo_head , yolo_boxes_to_corners
 
 else:
     raise ImportError('couldnt import yad2k')
+
+#some overrides for our purposes:
+def yolo_filter_boxes_extend(boxes, box_confidence, box_class_probs, threshold=.6):
+    """Filter YOLO boxes based on object and class confidence."""
+    box_scores = box_confidence * box_class_probs
+    box_classes = K.argmax(box_scores, axis=-1)
+    box_class_scores = K.max(box_scores, axis=-1)
+    prediction_mask = box_class_scores >= threshold
+
+    # TODO: Expose tf.boolean_mask to Keras backend?
+    boxes = tf.boolean_mask(boxes, prediction_mask)
+    scores = tf.boolean_mask(box_class_scores, prediction_mask)
+    all_scores = tf.boolean_mask(box_scores, prediction_mask)
+    classes = tf.boolean_mask(box_classes, prediction_mask)
+    return boxes, scores, classes, all_scores
+
+
+def yolo_eval_extend(yolo_outputs,
+              image_shape,
+              max_boxes=10,
+              score_threshold=.6,
+              iou_threshold=.5):
+    """Evaluate YOLO model on given input batch and return filtered boxes."""
+    box_xy, box_wh, box_confidence, box_class_probs = yolo_outputs
+    boxes = yolo_boxes_to_corners(box_xy, box_wh)
+    boxes, scores, classes, all_scores = yolo_filter_boxes_extend(
+        boxes, box_confidence, box_class_probs, threshold=score_threshold)
+
+    # Scale boxes back to original image shape.
+    height = image_shape[0]
+    width = image_shape[1]
+    image_dims = K.stack([height, width, height, width])
+    image_dims = K.reshape(image_dims, [1, 4])
+    boxes = boxes * image_dims
+
+    # TODO: Something must be done about this ugly hack!
+    max_boxes_tensor = K.variable(max_boxes, dtype='int32')
+    K.get_session().run(tf.variables_initializer([max_boxes_tensor]))
+    nms_index = tf.image.non_max_suppression(
+        boxes, scores, max_boxes_tensor, iou_threshold=iou_threshold)
+    boxes = K.gather(boxes, nms_index)
+    scores = K.gather(scores, nms_index)
+    classes = K.gather(classes, nms_index)
+    all_scores = K.gather(all_scores, nms_index)
+    return boxes, scores, classes, all_scores
+
+
 
 
 class yad2kForBusDetection(object):
@@ -45,7 +93,7 @@ class yad2kForBusDetection(object):
         self.cfg_path = 'yolov2.cfg'
 
         self.score_threshold = options['threshold']
-        self.iou_threshold = 0.8 #FIXME - TBD
+        self.iou_threshold = options['iou_threshold']
 
         self.yolo_model, self.sess , self.anchors, self.class_names = self.load_model()
 
@@ -95,33 +143,12 @@ class yad2kForBusDetection(object):
         # TODO: Wrap these backend operations with Keras layers.
         yolo_outputs = yolo_head(self.yolo_model.output, self.anchors, len(self.class_names))
         input_image_shape = K.placeholder(shape=(2,))
-        boxes, scores, classes = yolo_eval(
+        boxes, scores, classes, all_scores = yolo_eval_extend(
             yolo_outputs,
             input_image_shape,
             score_threshold=self.score_threshold,
             iou_threshold=self.iou_threshold)
 
-        # for image_file in os.listdir(test_path):
-        #     try:
-        #         image_type = imghdr.what(os.path.join(test_path, image_file))
-        #         if not image_type:
-        #             continue
-        #     except IsADirectoryError:
-        #         continue
-        #
-        #     image = Image.open(os.path.join(test_path, image_file))
-        # if is_fixed_size:  # TODO: When resizing we can use minibatch input.
-        #     resized_image = image.resize(
-        #         tuple(reversed(model_image_size)), Image.BICUBIC)
-        #     image_data = np.array(resized_image, dtype='float32')
-        # else:
-        #     # Due to skip connection + max pooling in YOLO_v2, inputs must have
-        #     # width and height as multiples of 32.
-        #     new_image_size = (image.width - (image.width % 32),
-        #                       image.height - (image.height % 32))
-        #     resized_image = image.resize(new_image_size, Image.BICUBIC)
-        #     image_data = np.array(resized_image, dtype='float32')
-        #     print(image_data.shape)
 
         #image resize
 
@@ -134,13 +161,13 @@ class yad2kForBusDetection(object):
         scale_height = image_height * 1. / orig_height
         scale_width = image_width * 1. / orig_width
 
-        image_data = np.array(cv2.resize(image,(image_height,image_width),interpolation=cv2.INTER_CUBIC), dtype='float32') #get size from cfg file
+        image_data = np.array(cv2.resize(image,(image_width,image_height),interpolation=cv2.INTER_CUBIC), dtype='float32') #get size from cfg file
 
         image_data /= 255.
         image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
 
-        out_boxes, out_scores, out_classes = self.sess.run(
-            [boxes, scores, classes],
+        out_boxes, out_scores, out_classes, out_all_scores = self.sess.run(
+            [boxes, scores, classes, all_scores],
             feed_dict={
                 self.yolo_model.input: image_data,
                 input_image_shape: [image_height, image_width],
@@ -148,10 +175,27 @@ class yad2kForBusDetection(object):
             })
         print('Found {} boxes'.format(len(out_boxes)))
 
-        # font = ImageFont.truetype(
-        #     font='font/FiraMono-Medium.otf',
-        #     size=np.floor(3e-2 * image_height + 0.5).astype('int32'))
-        # thickness = (image_width + image_height) // 300
+        # ##TEMP EXPERIMENT
+        # for batch_size in range(1,65):
+        #     t0 = time.time()
+        #     out_boxes, out_scores, out_classes, out_all_scores = self.sess.run(
+        #         [boxes, scores, classes, all_scores],
+        #         feed_dict={
+        #             self.yolo_model.input: np.tile(image_data,[batch_size,1,1,1]),
+        #             input_image_shape: [image_height, image_width],
+        #             K.learning_phase(): 0
+        #         })
+        #     t1 = time.time()
+        #     time_for_image = (t1-t0) * 1. / batch_size
+        #     print("batch size: %0d \t\t time: %0.4f"%(batch_size,time_for_image))
+
+
+        #find 3 most segnificant classes
+        classes_indexes = np.argsort(out_all_scores,axis=1)[:,-3:]
+        classes_scores = np.sort(out_all_scores,axis=1)[:,-3:]
+        classes_list = []
+        for i in range(classes_indexes.shape[0]):
+            classes_list.append(classes_indexes[i,(classes_scores[i,:] > self.score_threshold)])
 
         detections = []
 
@@ -159,6 +203,10 @@ class yad2kForBusDetection(object):
             predicted_class = self.class_names[c]
             box = out_boxes[i]
             score = out_scores[i]
+
+            predicted_class_list = []
+            for class_idx in classes_list[i]:
+                predicted_class_list.append(self.class_names[class_idx])
 
             label = '{} {:.2f}'.format(predicted_class, score)
             #
@@ -177,7 +225,7 @@ class yad2kForBusDetection(object):
             # else:
             #     text_origin = np.array([left, top + 1])
 
-            box = {'label': [predicted_class], 'confidence': score, 'topleft': {'x':left,'y':top},'bottomright':{'x':right,'y':bottom}}
+            box = {'label': predicted_class_list, 'confidence': score, 'topleft': {'x':left,'y':top},'bottomright':{'x':right,'y':bottom}}
             detections.append(box)
 
         return detections

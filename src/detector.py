@@ -281,7 +281,8 @@ class DetectorGitLoader(object):
 
         self.weightsURL = 'https://pjreddie.com/media/files/yolov2.weights'
         self.weights_file = os.path.join("yolov2.weights")
-        self.networkResolution = 608 #864 #608 #544 #288
+        self.input_width = 608 #864 #608 #544 #288
+        self.input_height = 608  # 864 #608 #544 #288
 
     def gitImport(self):
 
@@ -328,11 +329,11 @@ class DetectorGitLoader(object):
 
         # set input resolution
         cfgTxtSplit = cfgTxt.split('width=', maxsplit=1)
-        cfgTxtSplit[1] = str(self.networkResolution) + cfgTxtSplit[1][3:]  # assuming 3 digit resolution
+        cfgTxtSplit[1] = str(self.input_width) + cfgTxtSplit[1][3:]  # assuming 3 digit resolution
         cfgTxt = 'width='.join(cfgTxtSplit)
 
         cfgTxtSplit = cfgTxt.split('height=', maxsplit=1)
-        cfgTxtSplit[1] = str(self.networkResolution) + cfgTxtSplit[1][3:]  # assuming 3 digit resolution
+        cfgTxtSplit[1] = str(self.input_height) + cfgTxtSplit[1][3:]  # assuming 3 digit resolution
         cfgTxt = 'height='.join(cfgTxtSplit)
 
         with open(self.cfg_file, 'w') as file:
@@ -367,7 +368,7 @@ elif implementation == 'yad2k':
     from yad2kExtensions import yad2kForBusDetection
 
 # define YOLO model:
-options = {"model": cfg_file , "load": weights_file , "threshold": 0.05}
+options = {"model": cfg_file , "load": weights_file , "threshold": 0.05 , "iou_threshold": 0.5}
 
 #load model
 os.chdir(repDir)
