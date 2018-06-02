@@ -55,10 +55,7 @@ t = my_time()
 
 t.tic()
 
-if ('-dummy' in arg):
-    runDummy(myAnnFileName, busDir)
-else:
-    run(myAnnFileName, busDir)
+run(myAnnFileName, busDir)
 
 elapsed = t.toc()
 

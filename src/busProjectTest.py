@@ -1,12 +1,14 @@
 import os
 import sys
 import scipy.ndimage as nd
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
 import ast
 
 fontdict = {'fontsize':15, 'weight':'bold'}
+plt.switch_backend('Qt5Agg')
 
 class IMAGE:
 
@@ -75,13 +77,13 @@ def IOU(boxAList, boxBList):
         maxIouIndex = iou_.index(max(iou_))
         iou.append(maxIou)
         if (maxIouIndex in matches and maxIou > iou[matches[maxIouIndex]]):
-            matches[maxIouIndex] = i
             if (iou[matches[maxIouIndex]] > Th and boxAList[matches[maxIouIndex]][4] == boxBList[maxIouIndex][4]):
                 pass
             elif(maxIou > Th and boxAList[i][4] == boxBList[maxIouIndex][4]):
                 tp += 1
                 missed -= 1
                 fp -= 1
+            matches[maxIouIndex] = i
         if(not maxIouIndex in matches):
             matches[maxIouIndex] = i
             if(maxIou > Th and boxAList[i][4] == boxBList[maxIouIndex][4]):
@@ -110,41 +112,53 @@ def runTest(annFileNameGT, myAnnFileName, busDir , saveDir = None, elapsed = Non
     for i in range(len(writtenAnnsLines['Ground_Truth'])):
 
         lineGT = writtenAnnsLines['Ground_Truth'][i].replace(' ','')
-        lineE = writtenAnnsLines['Estimation'][i].replace(' ','')
         colors = []
         imName = lineGT.split(':')[0]
+        lineE = [x for x in writtenAnnsLines['Estimation'] if imName == x.split(':')[0]]
+        if(len(lineE) == 0):
+            lineE = imName + ':'
+        else:
+            lineE = lineE[0]
         bus = os.path.join(busDir, imName)
         image.set_image(bus)
         image.clear_ROIS()
         annsGT = lineGT[lineGT.index(':') + 1:].replace('\n', '')
         annsE = lineE[lineE.index(':') + 1:].replace('\n', '')
         annsGT = ast.literal_eval(annsGT)
-        annsE = ast.literal_eval(annsE)
         if (not isinstance(annsGT, tuple)):
             annsGT = [annsGT]
-        if (not isinstance(annsE, tuple)):
-            annsE = [annsE]
         for ann in annsGT:
             image.add_ROI(ann[:4])
             colorTag = objectsColorsInv[str(ann[4])]
             colors.append(objectsColorsForShow[colorTag])
-        for ann in annsE:
-            image.add_ROI(ann[:4])
-            colorTag = objectsColorsInv[str(ann[4])]
-            colors.append(objectsColorsForShow[colorTag])
-        tp, fp, missed, iou = IOU(annsGT, annsE)
+        numGT = len(annsGT)
+        if('[' in lineE):
+            annsE = ast.literal_eval(annsE)
+            if (not isinstance(annsE, tuple)):
+                annsE = [annsE]
+            for ann in annsE:
+                image.add_ROI(ann[:4])
+                colorTag = objectsColorsInv[str(ann[4])]
+                colors.append(objectsColorsForShow[colorTag])
+            tp, fp, missed, iou = IOU(annsGT, annsE)
+        else:
+            tp = 0
+            fp = 0
+            numGT = 0
+            missed = len(annsGT)
+            iou = []
         TP += tp
         FP += fp
         MISS += missed
         iouStr = ','.join(['{0:.2f}'.format(x) for x in iou])
         text = 'IOU Scores : ' + iouStr + '\nTP = {}, FP = {}, Missed = {} '.format(tp, fp, missed)
-        image.show_ROI(edgecolor = colors, title = imName, numGT = len(annsGT), text = text, saveDir = saveDir)
+        image.show_ROI(edgecolor = colors, title = imName, numGT = numGT , text = text, saveDir = saveDir)
 
-    precision = TP/(TP + FP)
-    recall = TP/(TP + MISS)
     if(TP == 0):
         F1Score = 0
     else:
+        precision = TP/(TP + FP)
+        recall = TP/(TP + MISS)
         F1Score = 2*(precision * recall)/(precision + recall)
     strToWrite = 'Total detections = {}/{}\nTotal False Positives = {}\nTotal missed = {}'.format(TP, TP+MISS, FP, MISS)
     strToWrite += '\nF1 SCORE : {0:.3f}'.format(F1Score)
@@ -159,9 +173,9 @@ def runTest(annFileNameGT, myAnnFileName, busDir , saveDir = None, elapsed = Non
     ax.imshow(im)
     ax.text(4,7, strToWrite, style='italic', fontdict = {'fontsize':50, 'weight':'bold'})
     mng = plt.get_current_fig_manager()
-    #mng.window.showMaximized()#FIXME
-    #plt.show()#FIXME
-    #plt.close()#FIXME
+    mng.window.showMaximized()
+    plt.show()
+    plt.close()
     FIG, ax = plt.subplots(1)
     plt.title('Results', fontdict = {'fontsize':20})
     ax.imshow(im)
