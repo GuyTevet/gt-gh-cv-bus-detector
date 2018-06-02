@@ -36,13 +36,11 @@ def run(myAnnFileName, buses):
         image = cv2.imread(os.path.join(currDir, '..', 'dataset', imageName))
 
         #detect
-        detector.detect(image,imageName,debugMode=False)
+        detector.detect(image,imageName,debugMode=True)
 
         #classify
 
     outData.save()
-
-
 
 
 def runDummy(myAnnFileName, buses):
