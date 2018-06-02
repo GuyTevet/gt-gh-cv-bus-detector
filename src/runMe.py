@@ -2,6 +2,8 @@ import numpy as np
 import ast
 import os
 import sys
+import classifier #from classifier import <nameOfFunction>
+import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import cv2
 sys.path.append('utils')
@@ -16,7 +18,8 @@ def run(myAnnFileName, buses):
     #instances
     outData = DatasetBB(myAnnFileName)
     detector = Detector(outData)
-    #classifier(?)
+    # Load data for classifier
+    allTrainFVs = np.load('cropImList.npy')
 
     #list all images in the testset
     currDir = os.path.abspath(os.getcwd())
@@ -29,19 +32,26 @@ def run(myAnnFileName, buses):
             dataset.remove(file)
 
 
+    # run classifier
+    numOfClasses = 6  #'1'-green,'2'-yellow,'3'-white,'4'-gold,'5'-blue,'6'-red
+    fvDim = 3
+    k = 5
+
     #run detector & classifier
     for imageName in dataset:
 
         #load
-        image = cv2.imread(os.path.join(currDir, '..', 'dataset', imageName))
+        image = mpimg.imread(os.path.join(currDir, '..', 'dataset', imageName))# cv2
 
         #detect
-        detector.detect(image,imageName,debugMode=True)
+        bboxes = detector.detect(image,imageName,debugMode=False)
 
         #classify
+        testFV = classifier.returnTestFv(image, bboxes, fvDim)
+        bboxes = classifier.kNNClassifier(testFV, allTrainFVs, numOfClasses, k, bboxes)
 
     outData.save()
-
+    # classifier.calcAccuracy(allTrainFVs, numOfClasses, outData, k)
 
 def runDummy(myAnnFileName, buses):
     annFileNameGT = os.path.join(os.getcwd(),'..','ground_truth','annotationsTrain.txt')
